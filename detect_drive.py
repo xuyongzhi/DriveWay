@@ -5,12 +5,11 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 from utils import points_to_density_img, read_laz
-from PIL import Image, ImageOps
 
 class DriveDetect:
     width = 1024*2
     height = 1024*2
-    sample_ratio = 0.5
+    sample_ratio = 1.0
     out_dir = Path('Out')
     if not out_dir.exists():
         out_dir.mkdir()
@@ -20,8 +19,6 @@ class DriveDetect:
         self.laz_path = laz_path
         self.data_dir = laz_path.parent
         self.ply_path = self.data_dir / 'pcd.ply'
-        self.ply_10_downsampled_path = self.data_dir / 'pcd_10_downsampled.ply'
-        self.ply_100_downsampled_path = self.data_dir / 'pcd_100_downsampled.ply'
 
         self.load_pcd()
 
@@ -41,7 +38,13 @@ class DriveDetect:
             mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
                 size=6, origin=[0,0,5])
             o3d.visualization.draw_geometries([pcd, mesh_frame])
+        pcd =  self.transform(pcd)
         self.points = np.asarray(pcd.points)
+    
+    def transform(self, pcd):
+        R = pcd.get_rotation_matrix_from_xyz((0,0,np.pi/6 + np.pi))
+        pcd.rotate(R, center=(0,0,0))
+        return pcd
     
     def detect(self):
         density_img, density_img_eh, scale_3d_2d, mins_3d = points_to_density_img(self.points, self.width, self.height)
@@ -49,14 +52,11 @@ class DriveDetect:
         cv2.imwrite(str(self.out_dir/'density_eh.png'), density_img_eh)
 
         img = density_img_eh
-        #img = transform_img(img)
 
         img = cv2.GaussianBlur(img, (11, 11), 0)
-        #img = cv2.blur(img, (27, 27))
-        #img = cv2.bilateralFilter(img, 9,75,75)
         cv2.imwrite(str(self.out_dir/'GaussianBlur.png'), img)
 
-        ret, thresh = cv2.threshold(img, 3, 255, 0)
+        ret, thresh = cv2.threshold(img, 1, 255, 0)
         cv2.imwrite(str(self.out_dir/'thresh.png'), thresh)
         contours, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         contours = [ c for c in contours if cv2.contourArea(c) > 10000]
@@ -68,18 +68,11 @@ class DriveDetect:
             edges = cv2.Canny(density_img, 100, 200)
             cv2.imwrite(str(self.out_dir/'canny.png'), edges)
 
-        print('Finished')
+        print('Detection finished')
 
     def points_to_img(self, points):
 
         pass
-
-def transform_img(img, angle=30):
-    im = Image.fromarray(img)
-    im = ImageOps.flip(im)
-    im_r = im.rotate(angle)
-    img_rotated = np.asarray(im_r)
-    return img_rotated
 
 def vis_pcd(xyz):
     pcd = o3d.geometry.PointCloud()

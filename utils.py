@@ -29,7 +29,7 @@ def get_density(points, width=512, height=512):
         coordinates = np.minimum(np.maximum(coordinates, 0), imageSizes - 1)
     density = np.zeros((height, width))
     for i,uv in enumerate(coordinates):
-        density[uv[1], uv[0]] += 1
+        density[uv[1], width-uv[0]] += 1
     return density, scale_3d_2d, mins
 
 def draw_density_image(density):
