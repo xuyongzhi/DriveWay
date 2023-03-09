@@ -2,5 +2,5 @@
 
 ## Installation 
 ```
-conda env create --name drive_env --file=env.yaml
+conda env create --file=env.yaml
 ```
