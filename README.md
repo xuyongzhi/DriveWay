@@ -1,4 +1,6 @@
 # Detect 2D drive profile from lidar point cloud
+- Author: Yongzhi (Matt) Xu 
+- Email: z5105843@zmail.unsw.edu.au 
 
 ## Installation 
 ```
@@ -41,16 +43,22 @@ python detect_drive_profile.py
 ## Experiments
 (1) Input:   
     <img src="Out_backup/pcd.png" width=700>   
+         
 (2) BEV density image:  
     <img src="Out_backup/density.png" width=700>    
+         
 (3) BEV density image after histograms equalization:  
     <img src="Out_backup/density_eh.png" width=700>    
+     
 (4) Gaussian blur the image to overcome small holes in the point cloud (acturally not exist in this sample):  
     <img src="Out_backup/GaussianBlur.png" width=700>    
+     
 (5) Binary image using a small threshold:  
     <img src="Out_backup/thresh.png" width=700>    
+     
 (6) Erode and dilate the binary image to filter small isolated pieces. 
     <img src="Out_backup/eroded.png" width=700>    
     <img src="Out_backup/dilated.png" width=700>      
+      
 (7) Detect the contours as the final result:  
     <img src="Out_backup/out_drive_profile.png" width=700>      
