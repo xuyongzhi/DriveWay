@@ -18,15 +18,12 @@ class ProfileDetect:
         First, project the 3D point cloud into BEV density image. 
         Second, detect the contour from the BEV density image.
         Third, if necessary, the 2D contour can be lifted into 3D.
-    Potential todo:
-        Fitting the detected contour to one single smooth and connected curve. 
     Args:
         laz_path: path of input data
         out_dir: output directory
         sampling_ratio: Small sampling ratio enable fast detection but may result in inaccurate result if it is too small. 
         out_height:
         out_width: Larger output image size results in better result, but costs more time.
-        
     Performance:
         The detection taks about 9 seconds on a Macbook Pro with sampling ratio of 0.1 and image size of (2048,2048). The current version can be significantly improved in efficiency.
         The criterion for accuracy is not well defined yet.
@@ -107,7 +104,7 @@ class ProfileDetect:
         if self.sampling_ratio < 1:
             pcd = pcd.random_down_sample(self.sampling_ratio)
         
-        if 0:
+        if 1:
             mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
                 size=10, origin=[5,5,0])
             o3d.visualization.draw_geometries([pcd, mesh_frame])
