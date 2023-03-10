@@ -4,3 +4,11 @@
 ```
 conda env create --file=env.yaml
 ```
+
+## Usage
+```
+conda activate drive_profile
+python detect_drive_profile.py
+```
+
+## Results
