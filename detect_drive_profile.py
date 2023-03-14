@@ -119,7 +119,7 @@ class ProfileDetect:
     
     @timing 
     def detect(self):
-        self.logger.info('Starting detecting BEV contour')
+        self.logger.info('Start detecting BEV contour')
         density_img, density_img_eh, scale_3d_2d, mins_3d = points_to_density_img(self.points, self.out_width, self.out_height)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'density.png'), density_img)
@@ -127,7 +127,7 @@ class ProfileDetect:
 
         img = density_img_eh
 
-        img = cv2.GaussianBlur(img, (15, 15), 0)
+        img = cv2.GaussianBlur(img, (11, 11), 0)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'GaussianBlur.png'), img)
 
@@ -135,11 +135,11 @@ class ProfileDetect:
         if self.debug:
             cv2.imwrite(str(self.out_dir/'thresh.png'), thresh)
 
-        thresh = erosion(thresh, 5, 5)
+        thresh = erosion(thresh, 3, 2)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'eroded.png'), thresh)
 
-        thresh = dilate(thresh, 5, 5)
+        thresh = dilate(thresh, 3, 2)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'dilated.png'), thresh)
 
