@@ -6,5 +6,7 @@ Sampling ratio: 0.5
 Output image size: (2048, 2048) 
 Debug: True 
 --------------------------------------------------------------------
-INFO:root:load_pcd: 52.023 s
-INFO:root:Starting detecting BEV contour
+INFO:root:load_pcd: 12.105 s
+INFO:root:Start detecting BEV contour
+INFO:root:Finish detecting BEV contour
+INFO:root:detect: 40.816 s
