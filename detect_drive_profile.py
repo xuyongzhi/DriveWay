@@ -166,7 +166,6 @@ class ProfileDetect:
         self.logger.info('Finish detecting BEV contour')
         return contours_2d, scale_3d_2d, mins_3d
 
-    
     def transform_2d_to_3d(self, contour_2d, scale_3d_2d, mins_3d):
         contour_2d = contour_2d.squeeze(1)
         contour_2d[:,0] = self.out_width - contour_2d[:,0]
