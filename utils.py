@@ -53,12 +53,15 @@ def read_laz(laz_path):
     points_all = np.concatenate(points_all, 0)
     return points_all[:,:3]
 
-def vis_points(points):
+def vis_points(points, with_frame=False):
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
-    mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
-        size=5, origin=[5,5,0])
-    o3d.visualization.draw_geometries([pcd, mesh_frame])
+    vis_mesh = [pcd]
+    if with_frame:
+        mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+            size=5, origin=[5,5,0])
+        vis_mesh.append(mesh_frame)
+    o3d.visualization.draw_geometries(vis_mesh)
 
 def erosion(src, kernel_size, num_ite):
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8) 
