@@ -3,7 +3,6 @@ import laspy
 import numpy as np
 import open3d as o3d
 from tqdm import tqdm
-from pathlib import Path
 
 def points_to_density_img(vertices, width, height):
     xy_density, scale_3d_2d, mins_3d = get_density(vertices, width, height)
@@ -91,5 +90,15 @@ def line_sampling(lines, step=2):
     return points
 
 def cal_width(coeffs_0, coeffs_1, x):
-    pass
-    return 1
+    y0 = np.poly1d(coeffs_0)(x.ravel())[0]
+    y1 = np.poly1d(coeffs_1)(x.ravel())[0]
+
+    b2 = x - coeffs_0[0] * y0
+    coeffs_orth = np.array([coeffs_0[0], b2])
+
+    ys_orth = np.arange(y0, y1, (y1-y0)/100)
+    xs_orth = np.poly1d(coeffs_orth)(ys_orth.ravel())
+    line_orth = np.stack([xs_orth, ys_orth], axis=1)
+    width = np.linalg.norm( line_orth[0,:]-line_orth[-1,:] )
+    
+    return width, line_orth

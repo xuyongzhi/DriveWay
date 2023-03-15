@@ -1,0 +1,15 @@
+INFO:root:
+-------------------------- config --------------------------
+Input point cloud: /Users/yongzhixu/Projects/DetectProfile/Data/07nxs_xct_Output_laz1_4.laz 
+Output directory: Out 
+Sampling ratio: 0.5 
+Output image size: (2048, 2048) 
+Debug: True 
+------------------------------------------------------------
+INFO:root:load_pcd: 10.210 s
+INFO:root:Start detecting BEV contour
+INFO:root:lsd_det: 0.058 s
+INFO:root:Finish detecting BEV contour
+INFO:root:detect_2D_contour: 46.069 s
+INFO:root:cal_tunnel_width: 2.621 s
+INFO:root:detect_profile: 48.705 s

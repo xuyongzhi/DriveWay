@@ -125,11 +125,10 @@ class ProfileDetect:
         return pcd
     
     @timing 
-    def detect(self):
-        self.load_pcd()
-        profile_2d, scale_3d_2d, mins_3d, img_profile_2d, profile_lines = self.detect_2D_contour()
-        self.curve_fitting_2d(profile_lines)
-        profile_3d = self.transform_2d_to_3d(profile_2d, scale_3d_2d, mins_3d, 4) 
+    def detect_profile(self):
+        profile_2d, profile_lines = self.detect_2D_contour()
+        self.cal_tunnel_width(profile_2d, profile_lines)
+        profile_3d = self.transform_2d_to_3d(profile_2d, 4) 
         o3d.io.write_point_cloud(str(self.out_profile_3d_path), profile_3d)
 
         if 0:
@@ -137,14 +136,18 @@ class ProfileDetect:
             o3d.visualization.draw_geometries(vis_pcd)
 
     @timing 
-    def load_and_curve_fitting(self):
+    def debug_load_and_cal_width(self):
+        '''
+        For debug only
+        '''
+        self.scale_3d_2d = np.array([[9.50621385, 9.50621385]])
         profile_lines = np.loadtxt(self.out_dir/'profile_lines.txt')
-        self.curve_fitting_2d(profile_lines)
+        self.cal_tunnel_width(profile_lines)
 
     @timing 
     def detect_2D_contour(self):
         self.logger.info('Start detecting BEV contour')
-        density_img, density_img_eh, scale_3d_2d, mins_3d = points_to_density_img(self.raw_points, self.out_width, self.out_height)
+        density_img, density_img_eh, self.scale_3d_2d, self.mins_3d = points_to_density_img(self.raw_points, self.out_width, self.out_height)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'density.png'), density_img)
             cv2.imwrite(str(self.out_dir/'density_eh.png'), density_img_eh)
@@ -178,27 +181,30 @@ class ProfileDetect:
         np.savetxt(self.out_dir/'profile_2d.txt', profile_2d, fmt='%.5f')
 
         self.logger.info('Finish detecting BEV contour')
-        return profile_2d, scale_3d_2d, mins_3d, img_profile_2d, profile_lines
+        return profile_2d, profile_lines
     
-    def curve_fitting_2d(self, profile_lines):
+    @timing 
+    def cal_tunnel_width(self, profile_2d, profile_lines):
         from curve_fitting import MultiPolyFitting
 
-        profile_2d = line_sampling(profile_lines, 1)
+        if 1:
+            profile_2d = ProfileDetect.get_dense_contour(profile_2d)
+        else:
+            profile_2d = line_sampling(profile_lines, 1)
         mul_ply_fit = MultiPolyFitting()
         coeffs_ls = mul_ply_fit.fit(profile_2d)
         
         X = profile_2d[:,0].copy()
         X.sort()
-        Y_0 = np.poly1d(coeffs_ls[0])(X.ravel())
-        Y_1 = np.poly1d(coeffs_ls[1])(X.ravel())
-        Y = (Y_0 + Y_1)/2 # center_curve
+        poly_0 = np.poly1d(coeffs_ls[0])
+        poly_1 = np.poly1d(coeffs_ls[1])
+        Y_0 = poly_0(X.ravel())
+        Y_1 = poly_1(X.ravel())
+        Y = (Y_0 + Y_1)/2 # center_curve: an approximate solution
 
-        #boundary_0 = np.stack([X,Y_0], axis=1)
-        #boundary_1 = np.stack([X,Y_0], axis=1)
-        #center_curve = np.stack([X,Y], axis=1)
-        #fitted_curves = dict(center=center_curve, boundary_0=boundary_0, boundary_1=boundary_1)
-
-        #width_2d = cal_width(coeffs_ls[0], coeffs_ls[1], X[len(X)//2])
+        j = len(X)//2
+        width_2d, line_orth = cal_width(coeffs_ls[0], coeffs_ls[1], X[j])
+        width_3d = width_2d / self.scale_3d_2d[0,0]
 
         if 1:
             plt.figure()
@@ -206,14 +212,17 @@ class ProfileDetect:
             plt.plot(X, Y_0, 'g-', label='boundary 0')
             plt.plot(X, Y_1, 'g-', label='boundary 1')
             plt.plot(X, Y, 'r-', label='center line')
-            plt.savefig(str(self.out_dir/'fitted_curves.png'))
+            plt.plot(line_orth[:,0], line_orth[:,1], 'y-', label='center line', linewidth=3)
+            plt.plot(X[j], Y[j], 'k*')
+            plt.text(X[j], Y[j], f'Width: {width_3d:.3f}')
+            plt.savefig(str(self.out_dir/'tunnel_width.png'))
 
+    @timing 
     def lsd_det(self, thresh_img):
         lsd = cv2.createLineSegmentDetector(cv2.LSD_REFINE_NONE)
-        #gray = cv2.cvtColor(thresh_img, cv2.COLOR_BGR2GRAY)
         lines, _, _, _ = lsd.detect(thresh_img)
         lengths = np.linalg.norm( lines[:,0,2:] - lines[:,0,:2], axis=1 )
-        mask = lengths > 20
+        mask = lengths > 10
         lines = lines[mask]
         drawn_img = lsd.drawSegments(thresh_img*0,lines)
         cv2.imwrite(str(self.out_dir/'profile_lines.png'), drawn_img)
@@ -221,11 +230,11 @@ class ProfileDetect:
         np.savetxt(str(self.out_dir/'profile_lines.txt'), lines)
         return lines
 
-    def transform_2d_to_3d(self, contour_2d, scale_3d_2d, mins_3d, fixed_height):
+    def transform_2d_to_3d(self, contour_2d, fixed_height):
         contour_2d = contour_2d.copy()
         contour_2d[:,0] = self.out_width - contour_2d[:,0]
         contour_2d = ProfileDetect.get_dense_contour(contour_2d)
-        contour_3d = contour_2d / scale_3d_2d + mins_3d
+        contour_3d = contour_2d / self.scale_3d_2d + self.mins_3d
         n = len(contour_3d)
         contour_3d = np.concatenate([contour_3d, np.zeros((n,1))+fixed_height], axis=1)
         pcd = o3d.geometry.PointCloud() 
@@ -256,8 +265,9 @@ def main_test(args):
                             args.out_height,
                             args.out_weight,
                             args.debug)
-    #drive_det.detect()
-    drive_det.load_and_curve_fitting()
+    drive_det.load_pcd()
+    drive_det.detect_profile()
+    #drive_det.debug_load_and_cal_width()
 
 if __name__ == '__main__':
     data_dir = Path(__file__).parent / 'Data'
@@ -274,7 +284,7 @@ if __name__ == '__main__':
                         help='The output directory.')
     parser.add_argument('--sampling_ratio',
                         type=float,
-                        default=0.2,
+                        default=0.5,
                         help='The sampling ratio for point cloud preprocessing.')
     parser.add_argument('--out_height',
                         type=int,
