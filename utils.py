@@ -72,3 +72,24 @@ def dilate(src, kernel_size, num_ite):
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8) 
     dilated = cv2.dilate(src, kernel, iterations=num_ite)
     return dilated
+
+def line_sampling(lines, step=2):
+    '''
+    (n,4)
+    '''
+    lines = lines.reshape(-1,2,2)
+    n = len(lines)
+    points = []
+    for i in range(n):
+        d_i = lines[i,1]-lines[i,0]
+        len_i = np.linalg.norm(d_i)
+        k = int(len_i/step)
+        d_i /= len_i
+        for j in range(k+1):
+            points.append( lines[i,0] + d_i * j )
+    points = np.stack(points)
+    return points
+
+def cal_width(coeffs_0, coeffs_1, x):
+    pass
+    return 1

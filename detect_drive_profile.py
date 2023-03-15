@@ -6,7 +6,9 @@ import logging
 import numpy as np
 from pathlib import Path
 from timer import Timer
-from utils import points_to_density_img, read_laz, erosion, dilate, vis_points
+from utils import points_to_density_img, read_laz, erosion, dilate, vis_points, line_sampling, cal_width
+from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
 
 class ProfileDetect:
     '''
@@ -55,9 +57,9 @@ class ProfileDetect:
         if not out_dir.exists():
             out_dir.mkdir()
         self.out_dir = out_dir
+        self.out_profile_3d_path = out_dir / 'out_profile_3d.ply'
 
         self.init_logger()
-        self.load_pcd()
     
     def init_logger(self):
         log_path = self.out_dir/'profile_detection.log'
@@ -76,7 +78,7 @@ class ProfileDetect:
         s += f'Sampling ratio: {self.sampling_ratio} \n'
         s += f'Output image size: {self.out_height, self.out_width} \n'
         s += f'Debug: {self.debug} \n'
-        s += ''.center(68, '-')
+        s += ''.center(60, '-')
         return s
     
     def timing(fn):
@@ -124,12 +126,20 @@ class ProfileDetect:
     
     @timing 
     def detect(self):
-        contours_2d, scale_3d_2d, mins_3d = self.detect_2D_contour()
-        contours_3d = [self.transform_2d_to_3d(contour_2d, scale_3d_2d, mins_3d) for contour_2d in contours_2d]
+        self.load_pcd()
+        profile_2d, scale_3d_2d, mins_3d, img_profile_2d, profile_lines = self.detect_2D_contour()
+        self.curve_fitting_2d(profile_lines)
+        profile_3d = self.transform_2d_to_3d(profile_2d, scale_3d_2d, mins_3d, 4) 
+        o3d.io.write_point_cloud(str(self.out_profile_3d_path), profile_3d)
 
-        vis_pcd = [self.raw_pcd] + contours_3d
-        o3d.visualization.draw_geometries(vis_pcd)
+        if 0:
+            vis_pcd = [self.raw_pcd, profile_3d]
+            o3d.visualization.draw_geometries(vis_pcd)
 
+    @timing 
+    def load_and_curve_fitting(self):
+        profile_lines = np.loadtxt(self.out_dir/'profile_lines.txt')
+        self.curve_fitting_2d(profile_lines)
 
     @timing 
     def detect_2D_contour(self):
@@ -141,40 +151,103 @@ class ProfileDetect:
 
         img = density_img_eh
 
-        img = cv2.GaussianBlur(img, (11, 11), 0)
+        img = cv2.GaussianBlur(img, (7, 7), 0)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'GaussianBlur.png'), img)
 
-        ret, thresh = cv2.threshold(img, 1, 255, 0)
+        ret, thresh = cv2.threshold(img, 2, 255, 0)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'thresh.png'), thresh)
 
-        thresh = erosion(thresh, 3, 2)
+        thresh = erosion(thresh, 5, 2)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'eroded.png'), thresh)
 
-        thresh = dilate(thresh, 3, 2)
+        thresh = dilate(thresh, 5, 2)
         if self.debug:
             cv2.imwrite(str(self.out_dir/'dilated.png'), thresh)
+        profile_lines = self.lsd_det(thresh)
 
         contours_2d, hierarchy = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        contours_2d = [c for c in contours_2d if cv2.contourArea(c) > 10000]
-        img_contour = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB) *0
-        cv2.drawContours(img_contour, contours_2d, -1, (0,255,0), 3)
-        cv2.imwrite(str(self.out_dir/'out_drive_profile.png'), img_contour)
+        contour_areas = [cv2.contourArea(c) for c in contours_2d]
+        profile_2d = contours_2d[np.argmax(contour_areas)].squeeze(1)
+
+        img_profile_2d = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB) *0
+        cv2.drawContours(img_profile_2d, [profile_2d], -1, (0,255,0), 2)
+        cv2.imwrite(str(self.out_dir/'out_drive_profile_2d.png'), img_profile_2d)
+        np.savetxt(self.out_dir/'profile_2d.txt', profile_2d, fmt='%.5f')
 
         self.logger.info('Finish detecting BEV contour')
-        return contours_2d, scale_3d_2d, mins_3d
+        return profile_2d, scale_3d_2d, mins_3d, img_profile_2d, profile_lines
+    
+    def curve_fitting_2d(self, profile_lines):
+        from curve_fitting import MultiPolyFitting
 
-    def transform_2d_to_3d(self, contour_2d, scale_3d_2d, mins_3d):
-        contour_2d = contour_2d.squeeze(1)
+        profile_2d = line_sampling(profile_lines, 1)
+        mul_ply_fit = MultiPolyFitting()
+        coeffs_ls = mul_ply_fit.fit(profile_2d)
+        
+        X = profile_2d[:,0].copy()
+        X.sort()
+        Y_0 = np.poly1d(coeffs_ls[0])(X.ravel())
+        Y_1 = np.poly1d(coeffs_ls[1])(X.ravel())
+        Y = (Y_0 + Y_1)/2 # center_curve
+
+        #boundary_0 = np.stack([X,Y_0], axis=1)
+        #boundary_1 = np.stack([X,Y_0], axis=1)
+        #center_curve = np.stack([X,Y], axis=1)
+        #fitted_curves = dict(center=center_curve, boundary_0=boundary_0, boundary_1=boundary_1)
+
+        #width_2d = cal_width(coeffs_ls[0], coeffs_ls[1], X[len(X)//2])
+
+        if 1:
+            plt.figure()
+            plt.plot(profile_2d[:,0], profile_2d[:,1], 'b.', label='input samples')
+            plt.plot(X, Y_0, 'g-', label='boundary 0')
+            plt.plot(X, Y_1, 'g-', label='boundary 1')
+            plt.plot(X, Y, 'r-', label='center line')
+            plt.savefig(str(self.out_dir/'fitted_curves.png'))
+
+    def lsd_det(self, thresh_img):
+        lsd = cv2.createLineSegmentDetector(cv2.LSD_REFINE_NONE)
+        #gray = cv2.cvtColor(thresh_img, cv2.COLOR_BGR2GRAY)
+        lines, _, _, _ = lsd.detect(thresh_img)
+        lengths = np.linalg.norm( lines[:,0,2:] - lines[:,0,:2], axis=1 )
+        mask = lengths > 20
+        lines = lines[mask]
+        drawn_img = lsd.drawSegments(thresh_img*0,lines)
+        cv2.imwrite(str(self.out_dir/'profile_lines.png'), drawn_img)
+        lines = lines.squeeze(1)
+        np.savetxt(str(self.out_dir/'profile_lines.txt'), lines)
+        return lines
+
+    def transform_2d_to_3d(self, contour_2d, scale_3d_2d, mins_3d, fixed_height):
+        contour_2d = contour_2d.copy()
         contour_2d[:,0] = self.out_width - contour_2d[:,0]
+        contour_2d = ProfileDetect.get_dense_contour(contour_2d)
         contour_3d = contour_2d / scale_3d_2d + mins_3d
         n = len(contour_3d)
-        contour_3d = np.concatenate([contour_3d, np.zeros((n,1))+self.cen_height], axis=1)
+        contour_3d = np.concatenate([contour_3d, np.zeros((n,1))+fixed_height], axis=1)
         pcd = o3d.geometry.PointCloud() 
         pcd.points = o3d.utility.Vector3dVector(contour_3d)
+        colors = np.zeros_like(contour_3d)
+        pcd.colors = o3d.utility.Vector3dVector(colors)
         return pcd
+    
+    @staticmethod
+    def get_dense_contour(contour_2d, step=2):
+        n = len(contour_2d)
+        contour_dense = []
+        for i in range(1,n):
+            offset_i = contour_2d[i] - contour_2d[i-1]
+            dis_i = np.linalg.norm(offset_i)
+            dir_i = offset_i / dis_i
+            k = int(dis_i / step)
+            for j in range(k):
+                contour_dense.append(contour_2d[i-1] + dir_i * j)
+        contour_dense = np.stack(contour_dense)
+        contour_dense = np.concatenate([contour_dense, contour_2d], axis=0)
+        return contour_dense
 
 def main_test(args):
     drive_det = ProfileDetect(args.input_laz_path,
@@ -183,7 +256,8 @@ def main_test(args):
                             args.out_height,
                             args.out_weight,
                             args.debug)
-    drive_det.detect()
+    #drive_det.detect()
+    drive_det.load_and_curve_fitting()
 
 if __name__ == '__main__':
     data_dir = Path(__file__).parent / 'Data'
@@ -200,7 +274,7 @@ if __name__ == '__main__':
                         help='The output directory.')
     parser.add_argument('--sampling_ratio',
                         type=float,
-                        default=0.1,
+                        default=0.2,
                         help='The sampling ratio for point cloud preprocessing.')
     parser.add_argument('--out_height',
                         type=int,
