@@ -107,13 +107,14 @@ class ProfileDetect:
         if self.sampling_ratio < 1:
             pcd = pcd.random_down_sample(self.sampling_ratio)
         
+        pcd =  ProfileDetect.align_scene(pcd)
+        self.raw_pcd = pcd
+        self.raw_points = np.asarray(pcd.points)
+
         if 0:
             mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
                 size=10, origin=[5,5,0])
             o3d.visualization.draw_geometries([pcd, mesh_frame])
-        pcd =  ProfileDetect.align_scene(pcd)
-        self.raw_pcd = pcd
-        self.raw_points = np.asarray(pcd.points)
     
     @staticmethod
     def align_scene(pcd, reverse=False):

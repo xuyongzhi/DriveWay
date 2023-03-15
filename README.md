@@ -39,26 +39,21 @@ python detect_drive_profile.py
 - Explore how to handle noisy and incomplete point cloud with more experiments.
 - Explore more efficient and robust solution, such as forground mask segmentation, end-to-end curve detection.
 - Incremental solution
+- Fit the polynomial curves of all tunnel branches, which enables the width calculation at any point and path generation for the drone.
 
 ## Experiments
-(1) Input:   
-    <img src="Out_backup/pcd.png" width=700>   
-         
-(2) BEV density image:  
-    <img src="Out_backup/density.png" width=700>    
-         
-(3) BEV density image after histograms equalization:  
-    <img src="Out_backup/density_eh.png" width=700>    
-     
-(4) Gaussian blur the image to overcome small holes in the point cloud (acturally not exist in this sample):  
-    <img src="Out_backup/GaussianBlur.png" width=700>    
-     
-(5) Binary image using a small threshold:  
-    <img src="Out_backup/thresh.png" width=700>    
-     
-(6) Erode and dilate the binary image to filter small isolated pieces. 
-    <img src="Out_backup/eroded.png" width=700>    
-    <img src="Out_backup/dilated.png" width=700>      
-      
-(7) Detect the contours as the final result:  
-    <img src="Out_backup/out_drive_profile.png" width=700>      
+
+
+| (1) Input | (2) BEV density image |  (3) Gaussian blur the image to overcome small holes in the point cloud (acturally not exist in this sample) |
+| :-----| :----: |  :----: |
+| <img width = 600/> ![Input](Data/pcd.png) | <img width = 600/> ![density](Results/density.png) | <img width = 600/> ![GaussianBlur](Results/GaussianBlur.png) |
+
+
+| (4) Binary image using a small threshold | (5) Erode the binary image to filter small isolated pieces |  (6) Dilate back to retain profile size. |
+| :-----| :----: |  :----: |
+| <img width = 600/> ![Input](Results/thresh.png) | <img width = 600/> ![density](Results/eroded.png) | <img width = 600/> ![GaussianBlur](Results/dilated.png) |
+
+
+| (7) Detect the contours as the final result | (8) Transform the 2D profile back to 3D space |  (9) Fit the profile by polynomial curves and calculate the tunnel width. |
+| :-----| :----: |  :----: |
+| <img width = 600/> ![Input](Results/out_drive_profile_2d.png) | <img width = 600/> ![density](Results/3d_profile.gif) | <img width = 600/> ![GaussianBlur](Results/tunnel_width.png) |
